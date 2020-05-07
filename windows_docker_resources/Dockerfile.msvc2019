@@ -23,7 +23,7 @@ FROM mcr.microsoft.com/windows:$WINDOWS_RELEASE_VERSION
 ADD https://github.com/ADLINK-IST/opensplice/releases/download/OSPL_V6_9_190925OSS_RELEASE/PXXX-VortexOpenSplice-6.9.190925OSS-HDE-x86_64.win-vs2019-installer.zip C:\TEMP\OpenSplice.zip
 
 # OpenSSL
-ADD https://slproweb.com/download/Win64OpenSSL-1_0_2u.exe C:\TEMP\Win64OpenSSL.exe
+ADD https://slproweb.com/download/Win64OpenSSL-1_1_1g.exe C:\TEMP\Win64OpenSSL.exe
 
 # OpenCV
 ADD https://github.com/ros2/ros2/releases/download/opencv-archives/opencv-3.4.6-vc16.VS2019.zip C:\TEMP\opencv.zip
