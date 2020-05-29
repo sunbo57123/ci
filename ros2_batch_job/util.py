@@ -122,6 +122,7 @@ class UnbufferedIO(object):
     def write(self, data):
         if self.stream.encoding != 'utf-8':
             data = data.encode(encoding=self.stream.encoding, errors='replace').decode()
+        time.sleep(1)
         self.stream.write(data)
         self.stream.flush()
 
