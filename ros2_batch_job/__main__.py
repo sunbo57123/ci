@@ -576,8 +576,7 @@ def run(args, build_function, blacklisted_package_names=None):
             # interpreter all packages need to be reinstalled too
             pip_cmd.append('--force-reinstall')
         job.run(
-            pip_cmd + pip_packages,
-            shell=True)
+            pip_cmd + pip_packages)
 
         # OS X can't invoke a file which has a space in the shebang line
         # therefore invoking vcs explicitly through Python
