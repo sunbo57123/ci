@@ -173,7 +173,7 @@ class MyProtocol(AsyncSubprocessProtocol):
         
     def on_stdout_received(self, data):
         if "pip" in self.cmd and "install" in self.cmd:
-            time.sleep(0.5)
+            sys.stdout.write("kkkkkkkkkkkk00000kkkklll".decode('utf-8', 'replace').replace(os.linesep, '\n'))
             sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
         else:
             sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
