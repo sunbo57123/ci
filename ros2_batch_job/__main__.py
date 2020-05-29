@@ -577,7 +577,7 @@ def run(args, build_function, blacklisted_package_names=None):
             pip_cmd.append('--force-reinstall')
         job.run(
             pip_cmd + pip_packages)
-
+        subprocess.run("python3 -m pip install --force-reinstall numpy", check=True)
         # OS X can't invoke a file which has a space in the shebang line
         # therefore invoking vcs explicitly through Python
         if args.do_venv:
