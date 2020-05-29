@@ -120,8 +120,8 @@ class UnbufferedIO(object):
         self.stream = stream
 
     def write(self, data):
-#         if self.stream.encoding != 'utf-8':
-#             data = data.encode(encoding=self.stream.encoding, errors='replace').decode()
+        if self.stream.encoding != 'utf-8':
+            data = data.encode(encoding=self.stream.encoding, errors='replace').decode()
         self.stream.write(data)
         self.stream.flush()
 
@@ -170,9 +170,13 @@ class MyProtocol(AsyncSubprocessProtocol):
         self.cmd = cmd
         self.exit_on_error = exit_on_error
         AsyncSubprocessProtocol.__init__(self, *args, **kwargs)
-
+        
     def on_stdout_received(self, data):
-        sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
+        if "pip" in self.cmd and "install" in self.cmd:
+            time.sleep(0.5)
+            sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
+        else:
+            sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
 
     def on_stderr_received(self, data):
         sys.stderr.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
