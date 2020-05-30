@@ -173,16 +173,14 @@ class MyProtocol(AsyncSubprocessProtocol):
         AsyncSubprocessProtocol.__init__(self, *args, **kwargs)
         
     def on_stdout_received(self, data):
-        if "pip" in self.cmd and "install" in self.cmd:
-            if not self.lastinfo:
-                self.lastinfo = data
-            elif self.lastinfo != data:
-                print(data.decode('utf-8', 'replace'), end='\n')
-                self.lastinfo = data
-            else:
-                pass
-        else:
-            sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
+        if "pip" in cmd and "install" in cmd:
+            self.install_info.append(data)
+            if len(self.install_info)==100:
+                for data in self.install_info[:5]:
+                    sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
+                for data in self.install_info[-5:]:
+                    sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
+                self.install_info = []
 
     def on_stderr_received(self, data):
         sys.stderr.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
