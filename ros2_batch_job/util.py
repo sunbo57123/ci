@@ -169,7 +169,7 @@ class MyProtocol(AsyncSubprocessProtocol):
     def __init__(self, cmd, exit_on_error, *args, **kwargs):
         self.cmd = cmd
         self.exit_on_error = exit_on_error
-        self.lastinfo = None
+        self.install_info = []
         AsyncSubprocessProtocol.__init__(self, *args, **kwargs)
         
     def on_stdout_received(self, data):
