@@ -174,7 +174,7 @@ class MyProtocol(AsyncSubprocessProtocol):
         
     def on_stdout_received(self, data):
         if b'[K' in data:
-
+            pass
         else:  
             sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
 
