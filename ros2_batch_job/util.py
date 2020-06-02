@@ -183,7 +183,7 @@ class MyProtocol(AsyncSubprocessProtocol):
             self.progress_bar = False
         if self.progress_bar:
             self.progress.append(data)
-            if len(self.progress) == 10:
+            if len(self.progress) == 5:
                 sys.stdout.write(self.progress[-1].decode('utf-8', 'replace').replace(os.linesep, '\n'))
                 self.progress = []
         else:
