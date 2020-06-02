@@ -179,12 +179,12 @@ class MyProtocol(AsyncSubprocessProtocol):
         if b'[?25h' in data:
             if self.progress:
                 for display in self.progress:
-                    sys.stdout.write(display.encode('ascii', 'ignore').replace(os.linesep, '\r'))
+                    sys.stdout.write(display.decode('ascii', 'replace').replace(os.linesep, '\r'))
             self.progress_bar = False
         if self.progress_bar:
             self.progress.append(data)
             if len(self.progress) == 10:
-                sys.stdout.write(self.progress[-1].encode('ascii', 'ignore').replace(os.linesep, '\r'))
+                sys.stdout.write(self.progress[-1].decode('ascii', 'replace').replace(os.linesep, '\r'))
                 self.progress = []
         else:
             sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
