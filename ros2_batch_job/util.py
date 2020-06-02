@@ -170,22 +170,19 @@ class MyProtocol(AsyncSubprocessProtocol):
         self.cmd = cmd  
         self.exit_on_error = exit_on_error
         self.progress_bar = False
-        self.progress = []
+        self.count = 0
         AsyncSubprocessProtocol.__init__(self, *args, **kwargs)
 
     def on_stdout_received(self, data):
         if b'[?25l' in data:
             self.progress_bar = True
         if b'[?25h' in data:
-            if self.progress:
-                for display in self.progress:
-                    sys.stdout.write(display.decode('ascii', 'replace').replace(os.linesep, '\r'))
+            sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
             self.progress_bar = False
         if self.progress_bar:
-            self.progress.append(data)
-            if len(self.progress) == 10:
-                sys.stdout.write(self.progress[-1].decode('ascii', 'replace').replace(os.linesep, '\r'))
-                self.progress = []
+            self.count += 1
+            if self.count == 5:
+                sys.stdout.write(data.decode('utf', 'replace').replace(os.linesep, '\n'))
         else:
             sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
 
