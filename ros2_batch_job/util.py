@@ -207,7 +207,7 @@ class PipProtocol(AsyncSubprocessProtocol):
                 sys.stdout.write(self.progress_data.split("\r")[-1]+'\n')
                 self.progress_data = ''
         else:
-            sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
+            sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n') + '<<<this line')
 
 
     def on_stderr_received(self, data):
