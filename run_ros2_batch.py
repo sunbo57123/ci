@@ -26,7 +26,8 @@ sys.path.insert(0, this_dir)
 import ros2_batch_job
 assert ros2_batch_job.__file__.startswith(this_dir), \
     "ros2_batch_job was imported from somewhere other than the local directory of this script"
-from ros2_batch_job.__main__ import main
+# from ros2_batch_job.__main__ import main
+from ros2_batch_job.test_meta import main
 
 if __name__ == '__main__':
     sys.exit(main())
