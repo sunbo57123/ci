@@ -333,7 +333,7 @@ def build_and_test(args, job):
     else:
         cmd.append('--cmake-args')
         cmd.extend(cmake_args)
-    print(">>>CMD:" + cmd)
+    print(">>>CMD:" + str(cmd))
 
     # if args.coverage:
     #     if args.os == 'linux':
@@ -386,7 +386,7 @@ def build_and_test(args, job):
         test_cmd.append('--pytest-with-coverage')
     test_cmd.extend(args.test_args)
 
-    print(">>>cmd:"+ test_cmd)
+    print(">>>cmd:"+ str(test_cmd))
 
     ret_test = job.run(test_cmd, exit_on_error=False, shell=True)
     info("colcon test returned: '{0}'".format(ret_test))
