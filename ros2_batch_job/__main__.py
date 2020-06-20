@@ -335,6 +335,15 @@ def process_coverage(args, job):
 def build_and_test(args, job):
     compile_with_clang = args.compile_with_clang and args.os == 'linux'
 
+    print('# print colcon list check colcon pkg')
+    cmd = [args.colcon_script, 'list']
+    ret_list = job.run(cmd, shell=True)
+    info("colcon list returned: '{0}'".format(ret_list))
+    print('# print end end end ')
+
+    print('# BEGIN SUBSECTION: test')
+
+
     print('# BEGIN SUBSECTION: build')
     cmd = [
         args.colcon_script, 'build',
@@ -455,18 +464,11 @@ def run(args, build_function, blacklisted_package_names=None):
     args.workspace = 'work space' if 'workspace' in args.white_space_in else 'ws'
 
     platform_name = platform.platform().lower()
-    if args.os == 'linux' or platform_name.startswith('linux'):
-        args.os = 'linux'
-        from .linux_batch import LinuxBatchJob
-        job = LinuxBatchJob(args)
-    elif args.os == 'osx' or platform_name.startswith('darwin') or platform_name.startswith('macos'):
-        args.os = 'osx'
-        from .osx_batch import OSXBatchJob
-        job = OSXBatchJob(args)
-    elif args.os == 'windows' or platform_name.startswith('windows'):
-        args.os = 'windows'
-        from .windows_batch import WindowsBatchJob
-        job = WindowsBatchJob(args)
+
+    args.os = 'linux'
+    from .linux_batch import LinuxBatchJob
+    job = LinuxBatchJob(args)
+
 
     if args.do_venv and args.os == 'windows':
         sys.exit("--do-venv is not supported on windows")
