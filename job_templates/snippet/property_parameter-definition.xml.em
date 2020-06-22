@@ -6,6 +6,7 @@
     default_repos_url=default_repos_url,
     supplemental_repos_url=supplemental_repos_url,
     ubuntu_distro=ubuntu_distro,
+    ros_distro=ros_distro,
     colcon_mixin_url=colcon_mixin_url,
     cmake_build_type=cmake_build_type,
     build_args_default=build_args_default,
@@ -33,6 +34,11 @@ This tests the robustness to whitespace being within the different paths.</descr
           <name>CI_ENABLE_COVERAGE</name>
           <description>By setting this to true, the build will report test coverage for C/C++ code (currently ignored on non-Linux) and pytest.</description>
           <defaultValue>@(enable_coverage_default)</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>CI_COVERAGE_FILTER_PKGS</name>
+          <description>Space list of packages to appear in the coverage report. Only when CI_ENABLE_COVERAGE is True. (if empty all coverage entries generated are included)</description>
+          <defaultValue></defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>CI_TEST_ARGS</name>

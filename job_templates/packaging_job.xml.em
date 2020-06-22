@@ -30,6 +30,7 @@
     default_repos_url=default_repos_url,
     supplemental_repos_url=supplemental_repos_url,
     ubuntu_distro=ubuntu_distro,
+    ros_distro=ros_distro,
     colcon_mixin_url=colcon_mixin_url,
     cmake_build_type=cmake_build_type,
     build_args_default=build_args_default,
@@ -109,6 +110,7 @@ All packages listed here have to be available from either the primary or supplem
 @[if 'linux' in os_name]@
 ubuntu_distro: ${build.buildVariableResolver.resolve('CI_UBUNTU_DISTRO')}, <br/>
 @[end if]@
+ros_distro: ${build.buildVariableResolver.resolve('CI_ROS_DISTRO')}, <br/>
 branch: ${build.buildVariableResolver.resolve('CI_BRANCH_TO_TEST')}, <br/>
 ci_branch: ${build.buildVariableResolver.resolve('CI_SCRIPTS_BRANCH')}, <br/>
 repos_url: ${build.buildVariableResolver.resolve('CI_ROS2_REPOS_URL')}, <br/>
@@ -342,8 +344,12 @@ setlocal enableDelayedExpansion
 rmdir /S /Q ws workspace
 
 echo "# BEGIN SECTION: Build DockerFile"
-set CONTAINER_NAME=ros2_windows_ci_msvc%CI_VISUAL_STUDIO_VERSION%
-set DOCKERFILE=windows_docker_resources\Dockerfile.msvc%CI_VISUAL_STUDIO_VERSION%
+@# Eloquent uses the Dashing Dockerfile.
+if "!CI_ROS_DISTRO!" == "eloquent" (
+  set "CI_ROS_DISTRO=dashing"
+)
+set CONTAINER_NAME=ros2_windows_ci_%CI_ROS_DISTRO%
+set DOCKERFILE=windows_docker_resources\Dockerfile.%CI_ROS_DISTRO%%
 
 rem "Change dockerfile once per day to invalidate docker caches"
 powershell "(Get-Content ${Env:DOCKERFILE}).replace('@@todays_date', $(Get-Date).ToLongDateString()) | Set-Content ${Env:DOCKERFILE}"

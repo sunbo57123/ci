@@ -31,6 +31,7 @@
     use_connext_debs_default=use_connext_debs_default,
     use_isolated_default=use_isolated_default,
     ubuntu_distro=ubuntu_distro,
+    ros_distro=ros_distro,
     cmake_build_type=cmake_build_type,
     colcon_mixin_url=colcon_mixin_url,
     build_args_default=build_args_default,
@@ -102,12 +103,14 @@ colcon_branch: ${build.buildVariableResolver.resolve('CI_COLCON_BRANCH')}, <br/>
 use_whitespace: ${build.buildVariableResolver.resolve('CI_USE_WHITESPACE_IN_PATHS')}, <br/>
 isolated: ${build.buildVariableResolver.resolve('CI_ISOLATED')}, <br/>
 ubuntu_distro: ${build.buildVariableResolver.resolve('CI_UBUNTU_DISTRO')}, <br/>
+ros_distro: ${build.buildVariableResolver.resolve('CI_ROS_DISTRO')}, <br/>
 colcon_mixin_url: ${build.buildVariableResolver.resolve('CI_COLCON_MIXIN_URL')}, <br/>
 cmake_build_type: ${build.buildVariableResolver.resolve('CI_CMAKE_BUILD_TYPE')}, <br/>
 build_args: ${build.buildVariableResolver.resolve('CI_BUILD_ARGS')}, <br/>
 test_args: ${build.buildVariableResolver.resolve('CI_TEST_ARGS')}, <br/>
 compile_with_clang: ${build.buildVariableResolver.resolve('CI_COMPILE_WITH_CLANG')}, <br/>
-coverage: ${build.buildVariableResolver.resolve('CI_ENABLE_COVERAGE')}\
+coverage: ${build.buildVariableResolver.resolve('CI_ENABLE_COVERAGE')}, <br/>
+coverage_filter: ${build.buildVariableResolver.resolve('CI_COVERAGE_FILTER_PKGS')}\
 """);]]>
         </script>
           <sandbox>false</sandbox>
@@ -180,6 +183,9 @@ if [ "$CI_COMPILE_WITH_CLANG" = "true" ]; then
 fi
 if [ "$CI_ENABLE_COVERAGE" = "true" ]; then
   export CI_ARGS="$CI_ARGS --coverage"
+  if [ -n "$CI_COVERAGE_FILTER_PKGS" ]; then
+    export CI_ARGS="$CI_ARGS --coverage-filter-packages $CI_COVERAGE_FILTER_PKGS"
+  fi
 fi
 @[  if os_name in ['linux', 'linux-aarch64', 'linux-armhf'] and turtlebot_demo]@
 export CI_ARGS="$CI_ARGS --ros1-path /opt/ros/$CI_ROS1_DISTRO"
@@ -335,6 +341,9 @@ if "!CI_COMPILE_WITH_CLANG!" == "true" (
 )
 if "!CI_ENABLE_COVERAGE!" == "true" (
   set "CI_ARGS=!CI_ARGS! --coverage"
+  if "!CI_COVERAGE_FILTER_PKGS!" NEQ "None" (
+    set "CI_ARGS=!CI_ARGS! --coverage-filter-packages"
+  )
 )
 set "CI_ARGS=!CI_ARGS! --visual-studio-version !CI_VISUAL_STUDIO_VERSION!"
 if "!CI_BUILD_ARGS!" NEQ "" (
@@ -356,8 +365,12 @@ setlocal enableDelayedExpansion
 rmdir /S /Q ws workspace "work space"
 
 echo "# BEGIN SECTION: Build DockerFile"
-set CONTAINER_NAME=ros2_windows_ci_msvc%CI_VISUAL_STUDIO_VERSION%
-set DOCKERFILE=windows_docker_resources\Dockerfile.msvc%CI_VISUAL_STUDIO_VERSION%
+@# Eloquent uses the Dashing Dockerfile.
+if "!CI_ROS_DISTRO!" == "eloquent" (
+  set "CI_ROS_DISTRO=dashing"
+)
+set CONTAINER_NAME=ros2_windows_ci_%CI_ROS_DISTRO%
+set DOCKERFILE=windows_docker_resources\Dockerfile.%CI_ROS_DISTRO%
 
 rem "Change dockerfile once per day to invalidate docker caches"
 powershell "(Get-Content ${Env:DOCKERFILE}).replace('@@todays_date', $(Get-Date).ToLongDateString()) | Set-Content ${Env:DOCKERFILE}"
@@ -425,9 +438,12 @@ if "!CI_CMAKE_BUILD_TYPE!" == "Debug" (
 if "!CI_COMPILE_WITH_CLANG!" == "true" (
   set "CI_ARGS=!CI_ARGS! --compile-with-clang"
 )
-if "!CI_ENABLE_COVERAGE!" == "true" (
-  set "CI_ARGS=!CI_ARGS! --coverage"
-)
+if [ "$CI_ENABLE_COVERAGE" = "true" ]; then
+  export CI_ARGS="$CI_ARGS --coverage"
+  if [ -n "$CI_COVERAGE_FILTER_PKGS" ]; then
+    export CI_ARGS="$CI_ARGS --coverage-filter-packages $CI_COVERAGE_FILTER_PKGS"
+  fi
+fi
 set "CI_ARGS=!CI_ARGS! --visual-studio-version !CI_VISUAL_STUDIO_VERSION!"
 if "!CI_BUILD_ARGS!" NEQ "" (
   set "CI_ARGS=!CI_ARGS! --build-args !CI_BUILD_ARGS!"

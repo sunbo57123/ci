@@ -14,6 +14,7 @@
 
 import argparse
 import configparser
+import glob
 import os
 from pathlib import Path
 import platform
@@ -21,6 +22,7 @@ from shutil import which
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 
 # Make sure we're using Python3
 assert sys.version.startswith('3'), "This script is only meant to work with Python3"
@@ -232,6 +234,9 @@ def get_args(sysargv=None):
         '--coverage', default=False, action='store_true',
         help="enable collection of coverage statistics")
     parser.add_argument(
+        '--coverage-filter-packages', default=None,
+        help='list of packages (space separated) to be displayed in the coverage report')
+    parser.add_argument(
         '--workspace-path', default=None,
         help="base path of the workspace")
     parser.add_argument(
@@ -256,9 +261,15 @@ def get_args(sysargv=None):
         argv, test_args = extract_argument_group(argv, '--test-args')
     else:
         build_args, test_args = extract_argument_group(build_args, '--test-args')
+    if '--coverage-filter-packages' in argv:
+        argv, coverage_filter_packages = extract_argument_group(argv, '--coverage-filter-packages')
+    else:
+        coverage_filter_packages = None
+
     args = parser.parse_args(argv)
     args.build_args = build_args
     args.test_args = test_args
+    args.coverage_filter_packages = coverage_filter_packages
 
     for name in ('sourcespace', 'buildspace', 'installspace'):
         space_directory = getattr(args, name)
@@ -272,61 +283,116 @@ def get_args(sysargv=None):
     return args
 
 
-def process_coverage(args, job):
+def get_package_path(args, package_name):
+    # need to get source package path for the package
+    cmd = [
+        args.colcon_script,
+        'list',
+        '--paths-only',
+        '--base-paths', args.sourcespace,
+        '--packages-select', package_name]
+    print(cmd)
+    try:
+        src_path = subprocess.check_output(cmd).decode('ascii').strip()
+    except subprocess.CalledProcessError as e:
+        print(e.output, file=sys.stderr)
+        sys.exit(-1)
+    # Check if found
+    if not src_path:
+        print("Package not found: " + package_name, file=sys.stderr)
+        sys.exit(-1)
+    return src_path
+
+
+def prepare_coverage_xml_pytest_files(args, package_names=None):
+    if not package_names:
+        # get all packages names from all paths that have a coverage.xml
+        package_names = [
+            path.split(os.path.sep)[1]  # the package name is just after build/
+            for path in glob.glob('**/coverage.xml', recursive=True)]
+
+    for package_name in package_names:
+        # coverage.xml is in build/$package_name/coverage.xml
+        coverage_xml_path = os.path.join(args.buildspace, package_name, 'coverage.xml')
+        tree = ET.parse(coverage_xml_path)
+        packages_tag = tree.getroot().find('packages')
+        assert packages_tag, "File %s has no packages XML tag" % (coverage_xml_path)
+        source_path = os.path.normpath(get_package_path(args, package_name))
+        for package_tag in packages_tag.iter('package'):
+            name_attibute = package_tag.get('name')
+            if name_attibute == 'test' or name_attibute == 'tests':
+                packages_tag.remove(package_tag)
+                continue
+            elif name_attibute == '.':
+                absolute_path = source_path
+            else:
+                absolute_path = os.path.join(source_path, package_tag.get('name'))
+            # cobertura files use . as filesystem separator
+            package_tag.set('name', absolute_path.replace(os.path.sep, '.'))
+        # python coverage detected: move the coverage.xml file modified to buildspace to be reported
+        tree.write(os.path.join(args.buildspace, package_name, '.coverage.xml'))
+
+
+def filter_gcov_coverage(args, coverage_info_file, packages_to_filter):
+    build_paths_collection = []
+    src_paths_collection = []
+    for package_name in packages_to_filter:
+        # accumulate packages paths to run lcov in order to process C/C++ coverage information
+        src_paths_collection.append('*%s/*' % (get_package_path(args, package_name)))
+        build_paths_collection.append('*%s/*' % (str(os.path.join(args.buildspace, package_name))))
+
+    cmd = [
+        'lcov',
+        '--extract', coverage_info_file,
+        '--output', coverage_info_file] \
+        + src_paths_collection \
+        + build_paths_collection
+    print(cmd)
+    subprocess.run(cmd, check=True)
+
+
+def process_coverage(args, job, packages_for_coverage=None):
     print('# BEGIN SUBSECTION: coverage analysis')
-    # Collect all .gcda files in args.workspace
-    output = subprocess.check_output(
-        [args.colcon_script, 'list', '--base-paths', args.sourcespace])
-    for line in output.decode().splitlines():
-        package_name, package_path, _ = line.split('\t', 2)
-        print(package_name)
-        package_build_path = os.path.join(args.buildspace, package_name)
-        gcda_files = []
-        for root, dirs, files in os.walk(package_build_path):
-            gcda_files.extend(
-                    [os.path.abspath(os.path.join(root, f))
-                        for f in files if f.endswith('.gcda')])
-        if len(gcda_files) == 0:
-            continue
+    # Capture all gdca/gcno files (all them inside buildspace)
+    raw_coverage_file = os.path.join(args.buildspace, 'coverage.info')
+    cmd = ['lcov',
+           '--capture',
+           '--directory', args.buildspace,
+           '--output', str(raw_coverage_file)]
+    print(cmd)
+    subprocess.run(cmd, check=True)
+    # Filter out system coverage and test code
+    filtered_coverage_file = os.path.join(args.buildspace, 'filtered_coverage.info')
+    cmd = ['lcov',
+           '--remove', raw_coverage_file,
+           '--output', str(filtered_coverage_file),
+           '/usr/*',  # no system files in reports
+           '/home/rosbuild/*',  # remove rti_connext installed in rosbuild
+           '*/test/*',
+           '*/tests/*',
+           '*gtest_vendor*',
+           '*gmock_vendor*']
+    print(cmd)
+    subprocess.run(cmd, check=True)
 
-        # Run one gcov command for all gcda files for this package.
-        cmd = ['gcov', '--preserve-paths', '--relative-only', '--source-prefix', os.path.abspath('.')] + gcda_files
-        print(cmd)
-        subprocess.run(cmd, check=True, cwd=package_build_path)
+    # Extract only desired packages if packages_for_coverage_str is set
+    if packages_for_coverage:
+        filter_gcov_coverage(args, filtered_coverage_file, packages_for_coverage)
+        prepare_coverage_xml_pytest_files(packages_for_coverage)
+    else:
+        # Process all coverage files produced by ptest
+        prepare_coverage_xml_pytest_files()
 
-        # Write one report for the entire package.
-        # cobertura plugin looks for files of the regex *coverage.xml
-        outfile = os.path.join(package_build_path, package_name + '.coverage.xml')
-        print('Writing coverage.xml report at path {}'.format(outfile))
-        # -e /usr  Ignore files from /usr
-        # -xml  Output cobertura xml
-        # -output=<outfile>  Pass name of output file
-        # -g  use existing .gcov files in the directory
-        cmd = [
-            'gcovr',
-            '--object-directory=' + package_build_path,
-            '-k',
-            '-r', os.path.abspath('.'),
-            '--xml', '--output=' + outfile,
-            '-g']
-        print(cmd)
-        subprocess.run(cmd, check=True)
+    # DEBUG REMOVE
+    cmd = ['find', args.buildspace, '-name', 'coverage.xml', '-exec', 'rm', '{}', ';']
+    print(cmd)
+    subprocess.run(cmd, check=True)
 
-    # remove Docker specific base path from coverage files
-    if args.workspace_path:
-        docker_base_path = os.path.dirname(os.path.abspath('.'))
-        for root, dirs, files in os.walk(args.buildspace):
-            for f in sorted(files):
-                if not f.endswith('coverage.xml'):
-                    continue
-                coverage_path = os.path.join(root, f)
-                with open(coverage_path, 'r') as h:
-                    content = h.read()
-                content = content.replace(
-                    '<source>%s/' % docker_base_path,
-                    '<source>%s/' % args.workspace_path)
-                with open(coverage_path, 'w') as h:
-                    h.write(content)
+    # Transform results to the cobertura format
+    outfile = os.path.join(args.buildspace, 'coverage.xml')
+    print('Writing coverage.xml report at path {}'.format(outfile))
+    cmd = ['lcov_cobertura', filtered_coverage_file, '--output', outfile]
+    subprocess.run(cmd, check=True)
 
     print('# END SUBSECTION')
     return 0
@@ -433,7 +499,7 @@ def build_and_test(args, job):
     info("colcon test-result returned: '{0}'".format(ret_test_results))
     print('# END SUBSECTION')
     if args.coverage and args.os == 'linux':
-        process_coverage(args, job)
+        process_coverage(args, job, args.coverage_filter_packages)
 
     # Uncomment this line to failing tests a failrue of this command.
     # return 0 if ret_test == 0 and ret_testr == 0 else 1
@@ -545,12 +611,12 @@ def run(args, build_function, blacklisted_package_names=None):
         if sys.platform == 'win32':
             if args.cmake_build_type == 'Debug':
                 pip_packages += [
-                    'https://github.com/ros2/ros2/releases/download/cryptography-archives/cffi-1.12.3-cp37-cp37dm-win_amd64.whl',  # required by cryptography
-                    'https://github.com/ros2/ros2/releases/download/cryptography-archives/cryptography-2.7-cp37-cp37dm-win_amd64.whl',
-                    'https://github.com/ros2/ros2/releases/download/lxml-archives/lxml-4.3.2-cp37-cp37dm-win_amd64.whl',
-                    'https://github.com/ros2/ros2/releases/download/netifaces-archives/netifaces-0.10.9-cp37-cp37dm-win_amd64.whl',
-                    'https://github.com/ros2/ros2/releases/download/numpy-archives/numpy-1.16.2-cp37-cp37dm-win_amd64.whl',
-                    'https://github.com/ros2/ros2/releases/download/typed-ast-archives/typed_ast-1.4.0-cp37-cp37dm-win_amd64.whl',  # required by mypy
+                    'https://github.com/ros2/ros2/releases/download/cryptography-archives/cffi-1.14.0-cp38-cp38d-win_amd64.whl',  # required by cryptography
+                    'https://github.com/ros2/ros2/releases/download/cryptography-archives/cryptography-2.9.2-cp38-cp38d-win_amd64.whl',
+                    'https://github.com/ros2/ros2/releases/download/lxml-archives/lxml-4.5.1-cp38-cp38d-win_amd64.whl',
+                    'https://github.com/ros2/ros2/releases/download/netifaces-archives/netifaces-0.10.9-cp38-cp38d-win_amd64.whl',
+                    'https://github.com/ros2/ros2/releases/download/numpy-archives/numpy-1.18.4-cp38-cp38d-win_amd64.whl',
+                    'https://github.com/ros2/ros2/releases/download/typed-ast-archives/typed_ast-1.4.1-cp38-cp38d-win_amd64.whl',  # required by mypy
                 ]
             else:
                 pip_packages += [
@@ -624,7 +690,7 @@ def run(args, build_function, blacklisted_package_names=None):
             colcon_script = which('colcon')
         args.colcon_script = colcon_script
         # Show what pip has
-        job.run(['"%s"' % job.python, '-m', 'pip', 'freeze'], shell=True)
+        job.run(['"%s"' % job.python, '-m', 'pip', 'freeze', '--all'], shell=True)
         print('# END SUBSECTION')
 
         # Fetch colcon mixins
