@@ -201,17 +201,25 @@ class PipProtocol(AsyncSubprocessProtocol):
         elif b'[?25h' in data:
             for display_line in self.progress_data.replace("\n","").split("\r"):
                 sys.stdout.write(display_line+'\n' if display_line else '')
+        # The 'pip install' progress bar output can be pretty noisy in CI output. Print only last line 
+        # every 1000 characters to reduce the noisiness.  We detect the pip progress bar by the beginning sequence of
+        # '[?25l' and the end sequence of '[?25h'.
+        if b'[?25l' in data:
+            self.progress_bar = True
+            sys.stdout.write(data.decode('utf-8', 'replace').replace('\r', '') + '\n')
+        elif b'[?25h' in data:
+            for display_line in self.progress_data.replace('\n', '').split('\r'):
+                sys.stdout.write(display_line + '\n' if display_line else '')
             self.progress_bar = False
             self.progress_data = ''
             sys.stdout.write(data.decode('utf-8', 'replace').replace('\r', ''))
         elif self.progress_bar:
             self.progress_data += data.decode('utf-8', 'replace')
             if len(self.progress_data) >= 1000:
-                sys.stdout.write(self.progress_data.split("\r")[-1]+'\n')
+                sys.stdout.write(self.progress_data.split('\r')[-1] + '\n')
                 self.progress_data = ''
         else:
             sys.stdout.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
-
 
     def on_stderr_received(self, data):
         sys.stderr.write(data.decode('utf-8', 'replace').replace(os.linesep, '\n'))
